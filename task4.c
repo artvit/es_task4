@@ -71,16 +71,18 @@ static struct file_operations fops_r =
 
 static char		buffer_1[30] = {0};
 static short	read_pos_1 = 0;
-static int 		a;
+static long int 		a;
 
 static char		buffer_2[30] = {0};
 static short	read_pos_2 = 0;
-static int 		b;
+static long int 		b;
 
-static char		buffer_op[3] = {0};
+static char		buffer_op[5] = {0};
 static short	read_pos_op = 0;
 static char		op;
 
+static short	res_size = 0;
+static short	times = 0;
 
 
 static int __init calc_init(void)
@@ -154,7 +156,7 @@ static ssize_t dev1_read(struct file *filep, char *buffer, size_t len, loff_t *o
 static ssize_t dev1_write(struct file *filep, const char *buffer, size_t len, loff_t *offset)
 {
 	short count = 0;
-	memset(buffer_1, 0, 100);
+	memset(buffer_1, 0, 30);
 	read_pos_1 = 0;
 	while (len > 0) {
 		buffer_1[count] = buffer[count++];
@@ -193,13 +195,13 @@ static ssize_t dev2_read(struct file *filep, char *buffer, size_t len, loff_t *o
 static ssize_t dev2_write(struct file *filep, const char *buffer, size_t len, loff_t *offset)
 {
 	short count = 0;
-	memset(buffer_2, 0, 100);
+	memset(buffer_2, 0, 30);
 	read_pos_2 = 0;
 	while (len > 0) {
 		buffer_2[count] = buffer[count++];
 		len--;
 	}
-	short result = kstrtol(buffer_1, 0, &a);
+	short result = kstrtol(buffer_2, 0, &b);
 	return count;
 }
 
@@ -232,7 +234,7 @@ static ssize_t dev_op_read(struct file *filep, char *buffer, size_t len, loff_t 
 static ssize_t dev_op_write(struct file *filep, const char *buffer, size_t len, loff_t *offset)
 {
 	short count = 0;
-	memset(buffer_op, 0, 100);
+	memset(buffer_op, 0, 5);
 	read_pos_op = 0;
 	while (len > 0) {
 		buffer_op[count] = buffer[count++];
@@ -258,8 +260,12 @@ static int dev_res_open(struct inode *inodep, struct file *filep)
 
 static ssize_t dev_res_read(struct file *filep, char *buffer, size_t len, loff_t *offset)
 {
-	int res = 0;
-	char buf[30] = {0};
+	long int res = 0;
+	char buf[30];
+	memset(buf, 0, 30);
+
+	if (times != 0)
+		return 0;
 	switch (op) {
 	case '+':
 		res = a + b;
@@ -277,15 +283,19 @@ static ssize_t dev_res_read(struct file *filep, char *buffer, size_t len, loff_t
 		} else {
 			res = a / b;
 		}
+		break;
+	default:
+		printk(KERN_ALERT "Unknown operation!!!");
+		break;
 	}
-	sprintf(buf, "%d", res);
-	short count = 0;
-	while (len && buffer_op[count] != 0) {
-		put_user(buffer_op[count], buffer++);
-		len--;
-		count++;
-	}
-	return count;
+	
+	sprintf(buf, "%ld\n", res);
+	
+	printk(KERN_ALERT "a:%ld b:%ld op:%c res:%ld", a, b, op, res);
+	res_size = strlen(buf);
+	copy_to_user(buffer, buf, res_size);
+	times++;
+	return res_size;
 }
 
 static ssize_t dev_res_write(struct file *filep, const char *buffer, size_t len, loff_t *offset)
@@ -295,6 +305,8 @@ static ssize_t dev_res_write(struct file *filep, const char *buffer, size_t len,
 
 static int dev_res_release(struct inode *inodep, struct file *filep)
 {
+	times = 0;
+	res_size = 0;
 	printk(KERN_INFO "CalcModule: Result device successfully closed\n");
 	return 0;
 }
