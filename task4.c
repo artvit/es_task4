@@ -3,19 +3,163 @@
 #include <linux/init.h>
 #include <linux/device.h>
 #include <linux/kernel.h>  
+#include <linux/fs.h>
+#include <asm/uaccess.h>
 
 MODULE_LICENSE("Dual BSD/GPL");
 
-static int hello_init(void)
+#define MAJOR_NUMBER 138
+
+
+static int    majorNumber = MAJOR_NUMBER;                  ///< Stores the device number -- determined automatically
+
+#define  FST_DEVICE_NAME "calc-1st"    ///< The device will appear at /dev/CalcModule using this value
+static int     dev1_open(struct inode *, struct file *);
+static int     dev1_release(struct inode *, struct file *);
+static ssize_t dev1_read(struct file *, char *, size_t, loff_t *);
+static ssize_t dev1_write(struct file *, const char *, size_t, loff_t *);
+static struct file_operations fops_1 =
 {
-	printk(KERN_ALERT "Hello, world!\n");
+	.open = dev1_open,
+	.read = dev1_read,
+	.write = dev1_write,
+	.release = dev1_release,
+};
+
+
+#define  SND_DEVICE_NAME "calc-2nd"
+static int     dev2_open(struct inode *, struct file *);
+static int     dev2_release(struct inode *, struct file *);
+static ssize_t dev2_read(struct file *, char *, size_t, loff_t *);
+static ssize_t dev2_write(struct file *, const char *, size_t, loff_t *);
+static struct file_operations fops_2 =
+{
+	.open = dev2_open,
+	.read = dev2_read,
+	.write = dev2_write,
+	.release = dev2_release,
+};
+
+
+#define  OP_DEVICE_NAME "calc-oper"
+static int     dev_op_open(struct inode *, struct file *);
+static int     dev_op_release(struct inode *, struct file *);
+static ssize_t dev_op_read(struct file *, char *, size_t, loff_t *);
+static ssize_t dev_op_write(struct file *, const char *, size_t, loff_t *);
+static struct file_operations fops_op =
+{
+	.open = dev_op_open,
+	.read = dev_op_read,
+	.write = dev_op_write,
+	.release = dev_op_release,
+};
+
+
+#define  RES_DEVICE_NAME "calc-res"
+static int     dev_res_open(struct inode *, struct file *);
+static int     dev_res_release(struct inode *, struct file *);
+static ssize_t dev_res_read(struct file *, char *, size_t, loff_t *);
+static ssize_t dev_res_write(struct file *, const char *, size_t, loff_t *);
+static struct file_operations fops_r =
+{
+	.open = dev_res_open,
+	.read = dev_res_read,
+	.write = dev_res_write,
+	.release = dev_res_release,
+};
+
+
+static char		msg[100] = {0};
+static short	readPos = 0;
+static int 		times = 0;
+
+
+
+static int __init calc_init(void)
+{
+	int result;
+	result = register_chrdev(majorNumber, FST_DEVICE_NAME, &fops_1);
+	if (majorNumber<0) {
+		printk(KERN_ALERT "CalcModule failed to register first device\n");
+		return majorNumber;
+	}
+	
+	result = register_chrdev(majorNumber + 1, SND_DEVICE_NAME, &fops_2);
+	if (result < 0) {
+		unregister_chrdev(majorNumber, FST_DEVICE_NAME);
+		printk(KERN_ALERT "CalcModule failed to register second device\n");
+		return result;
+	}
+
+	result = register_chrdev(majorNumber + 2, OP_DEVICE_NAME, &fops_op);
+	if (result < 0) {
+		unregister_chrdev(majorNumber, FST_DEVICE_NAME);
+		unregister_chrdev(majorNumber + 1, SND_DEVICE_NAME);
+		printk(KERN_ALERT "CalcModule failed to register third device\n");
+		return result;
+	}
+
+	result = register_chrdev(majorNumber + 3, RES_DEVICE_NAME, &fops_r);
+	if (result < 0) {
+		unregister_chrdev(majorNumber, FST_DEVICE_NAME);
+		unregister_chrdev(majorNumber + 1, SND_DEVICE_NAME);
+		unregister_chrdev(majorNumber + 2, OP_DEVICE_NAME);
+		printk(KERN_ALERT "CalcModule failed to register fourth device\n");
+		return result;
+	}
+	
+	printk(KERN_INFO "CalcModule: registered correctly with major number %d\n", majorNumber);
+
 	return 0;
 }
 
-static void hello_exit(void)
+static void __exit calc_exit(void)
 {
-	printk(KERN_ALERT "Goodbye, world.\n");
+	unregister_chrdev(majorNumber, FST_DEVICE_NAME);
+	unregister_chrdev(majorNumber + 1, SND_DEVICE_NAME);
+	unregister_chrdev(majorNumber + 2, OP_DEVICE_NAME);
+	unregister_chrdev(majorNumber + 3, RES_DEVICE_NAME);
+	printk(KERN_INFO "CalcModule: Goodbye from the LKM!\n");
 }
 
-module_init(hello_init);
-module_exit(hello_exit);
+
+
+
+static int dev1_open(struct inode *inodep, struct file *filep)
+{
+	printk(KERN_INFO "CalcModule: Device has been opened");
+	return 0;
+}
+
+static ssize_t dev1_read(struct file *filep, char *buffer, size_t len, loff_t *offset)
+{
+	short count = 0;
+	while (len && msg[readPos] != 0) {
+		put_user(msg[readPos], buffer++);
+		count++;
+		len--;
+		readPos++;
+	}
+	return count;
+}
+
+static ssize_t dev1_write(struct file *filep, const char *buffer, size_t len, loff_t *offset)
+{
+	short count = 0;
+	memset(msg, 0, 100);
+	readPos = 0;
+	while (len > 0) {
+		msg[count] = buffer[count++];
+		len--;
+	}
+	return count;
+}
+
+static int dev1_release(struct inode *inodep, struct file *filep)
+{
+	printk(KERN_INFO "CalcModule: Device successfully closed\n");
+	return 0;
+}
+
+module_init(calc_init);
+module_exit(calc_exit);
