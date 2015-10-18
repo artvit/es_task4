@@ -69,9 +69,17 @@ static struct file_operations fops_r =
 };
 
 
-static char		msg[100] = {0};
-static short	readPos = 0;
-static int 		times = 0;
+static char		buffer_1[30] = {0};
+static short	read_pos_1 = 0;
+static int 		a;
+
+static char		buffer_2[30] = {0};
+static short	read_pos_2 = 0;
+static int 		b;
+
+static char		buffer_op[3] = {0};
+static short	read_pos_op = 0;
+static char		op;
 
 
 
@@ -127,18 +135,18 @@ static void __exit calc_exit(void)
 
 static int dev1_open(struct inode *inodep, struct file *filep)
 {
-	printk(KERN_INFO "CalcModule: Device has been opened");
+	printk(KERN_INFO "CalcModule: First operand device has been opened");
 	return 0;
 }
 
 static ssize_t dev1_read(struct file *filep, char *buffer, size_t len, loff_t *offset)
 {
 	short count = 0;
-	while (len && msg[readPos] != 0) {
-		put_user(msg[readPos], buffer++);
+	while (len && buffer_1[read_pos_1] != 0) {
+		put_user(buffer_1[read_pos_1], buffer++);
 		count++;
 		len--;
-		readPos++;
+		read_pos_1++;
 	}
 	return count;
 }
@@ -146,20 +154,152 @@ static ssize_t dev1_read(struct file *filep, char *buffer, size_t len, loff_t *o
 static ssize_t dev1_write(struct file *filep, const char *buffer, size_t len, loff_t *offset)
 {
 	short count = 0;
-	memset(msg, 0, 100);
-	readPos = 0;
+	memset(buffer_1, 0, 100);
+	read_pos_1 = 0;
 	while (len > 0) {
-		msg[count] = buffer[count++];
+		buffer_1[count] = buffer[count++];
 		len--;
 	}
+	short result = kstrtol(buffer_1, 0, &a);
 	return count;
 }
 
 static int dev1_release(struct inode *inodep, struct file *filep)
 {
-	printk(KERN_INFO "CalcModule: Device successfully closed\n");
+	printk(KERN_INFO "CalcModule: First operand device successfully closed\n");
 	return 0;
 }
+
+
+
+static int dev2_open(struct inode *inodep, struct file *filep)
+{
+	printk(KERN_INFO "CalcModule: Second operand device has been opened");
+	return 0;
+}
+
+static ssize_t dev2_read(struct file *filep, char *buffer, size_t len, loff_t *offset)
+{
+	short count = 0;
+	while (len && buffer_2[read_pos_2] != 0) {
+		put_user(buffer_2[read_pos_2], buffer++);
+		count++;
+		len--;
+		read_pos_2++;
+	}
+	return count;
+}
+
+static ssize_t dev2_write(struct file *filep, const char *buffer, size_t len, loff_t *offset)
+{
+	short count = 0;
+	memset(buffer_2, 0, 100);
+	read_pos_2 = 0;
+	while (len > 0) {
+		buffer_2[count] = buffer[count++];
+		len--;
+	}
+	short result = kstrtol(buffer_1, 0, &a);
+	return count;
+}
+
+static int dev2_release(struct inode *inodep, struct file *filep)
+{
+	printk(KERN_INFO "CalcModule: Second operand device successfully closed\n");
+	return 0;
+}
+
+
+
+static int dev_op_open(struct inode *inodep, struct file *filep)
+{
+	printk(KERN_INFO "CalcModule: Operator device has been opened");
+	return 0;
+}
+
+static ssize_t dev_op_read(struct file *filep, char *buffer, size_t len, loff_t *offset)
+{
+	short count = 0;
+	while (len && buffer_op[read_pos_op] != 0) {
+		put_user(buffer_op[read_pos_op], buffer++);
+		count++;
+		len--;
+		read_pos_op++;
+	}
+	return count;
+}
+
+static ssize_t dev_op_write(struct file *filep, const char *buffer, size_t len, loff_t *offset)
+{
+	short count = 0;
+	memset(buffer_op, 0, 100);
+	read_pos_op = 0;
+	while (len > 0) {
+		buffer_op[count] = buffer[count++];
+		len--;
+	}
+	op = buffer_op[0];
+	return count;
+}
+
+static int dev_op_release(struct inode *inodep, struct file *filep)
+{
+	printk(KERN_INFO "CalcModule: Operator device successfully closed\n");
+	return 0;
+}
+
+
+
+static int dev_res_open(struct inode *inodep, struct file *filep)
+{
+	printk(KERN_INFO "CalcModule: Result device has been opened");
+	return 0;
+}
+
+static ssize_t dev_res_read(struct file *filep, char *buffer, size_t len, loff_t *offset)
+{
+	int res = 0;
+	char buf[30] = {0};
+	switch (op) {
+	case '+':
+		res = a + b;
+		break;
+	case '-':
+		res = a - b;
+		break;
+	case '*':
+		res = a * b;
+		break;
+	case '/':
+		if (b == 0) {
+			printk(KERN_ALERT "Division by 0!!!");
+			return -1;
+		} else {
+			res = a / b;
+		}
+	}
+	sprintf(buf, "%d", res);
+	short count = 0;
+	while (len && buffer_op[count] != 0) {
+		put_user(buffer_op[count], buffer++);
+		len--;
+		count++;
+	}
+	return count;
+}
+
+static ssize_t dev_res_write(struct file *filep, const char *buffer, size_t len, loff_t *offset)
+{
+	return -1;
+}
+
+static int dev_res_release(struct inode *inodep, struct file *filep)
+{
+	printk(KERN_INFO "CalcModule: Result device successfully closed\n");
+	return 0;
+}
+
+
 
 module_init(calc_init);
 module_exit(calc_exit);

@@ -11,3 +11,5 @@ sudo chmod a+r+w /dev/calc-oper
 
 sudo mknod /dev/calc-res c 141 0
 sudo chmod a+r+w /dev/calc-res
+
+sudo insmod task4.ko
